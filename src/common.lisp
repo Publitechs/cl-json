@@ -54,7 +54,6 @@
 (defparameter +json-lisp-escaped-chars+
   '((#\" . #\")
     (#\\ . #\\)
-    (#\/ . #\/)
     (#\b . #\Backspace)
     (#\f . #\)
     (#\n . #\Newline)
