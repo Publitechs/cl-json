@@ -5,6 +5,16 @@
 
 (in-package :json)
 
+(defvar *indent-level* nil)
+(defvar *indent-num-spaces* 2)
+
+(defun newline-and-indent (stream)
+  (declare (optimize (speed 3) (safety 0) (space 0) (debug 1)
+        (compilation-speed 0)))
+  (write-char #\Newline stream)
+  (loop repeat (* *indent-level* *indent-num-spaces*)
+        do (write-char #\Space stream)))
+
 (defvar *json-output* (make-synonym-stream '*standard-output*)
   "The default output stream for encoding operations.")
 
@@ -41,6 +51,10 @@ and execute BODY."
 (defgeneric encode-json (object &optional stream)
   (:documentation "Write a JSON representation of OBJECT to STREAM and
 return NIL."))
+
+(defmethod encode-json :around (object &optional stream)
+  (let ((*indent-level* (if *indent-level* *indent-level* 0)))
+    (call-next-method)))
 
 (defun encode-json-to-string (object)
   "Return the JSON representation of OBJECT as a string."
@@ -98,7 +112,7 @@ afterwards NIL.")
              *json-aggregate-context*))
   (prog1 *json-aggregate-first*
     (unless *json-aggregate-first*
-      (write-char #\, stream))
+      (write-char #\, stream) (newline-and-indent stream))
     (setq *json-aggregate-first* nil)))
 
 (defmacro with-aggregate ((context begin-char end-char
@@ -110,7 +124,7 @@ and END-CHAR."
          (*json-aggregate-first* t))
      (declare (special *json-aggregate-context* *json-aggregate-first*))
      (write-char ,begin-char ,stream)
-     (unwind-protect (progn ,@body)
+     (unwind-protect (progn ,@body)   
        (write-char ,end-char ,stream))))
 
 (defmacro with-array ((&optional (stream '*json-output*)) &body body)
@@ -151,7 +165,11 @@ value of ENCODER (default is #'ENCODE-JSON)."
   "Open a JSON Object, run BODY, then close the Object.  Inside the BODY,
 AS-OBJECT-MEMBER or ENCODE-OBJECT-MEMBER should be called to encode
 Members of the Object."
-  `(with-aggregate (object #\{ #\} ,stream) ,@body))
+  `(progn
+     (incf *indent-level*)
+     (newline-and-indent stream)
+     (with-aggregate (object #\{ #\} ,stream) ,@body)
+     (decf *indent-level*)))
 
 (defmacro as-object-member ((key &optional (stream '*json-output*))
                              &body body)
@@ -166,6 +184,7 @@ colon, and separated by comma from any preceding or following Member."
            (progn (write-string key ,stream) nil)
            (encode-json key ,stream)))
      (write-char #\: ,stream)
+     (write-char #\Space ,stream)
      ,@body))
 
 (defun encode-object-member (key value
